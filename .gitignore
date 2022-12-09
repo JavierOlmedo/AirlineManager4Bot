@@ -1,4 +1,7 @@
-test.py
+# folders
 venv
+
+# files
 creds
 log
+test.py
