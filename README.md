@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/JavierOlmedo/ALMB/master/img/logo.png" width="100px">
+    <img src="https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/logo.png" width="100px">
     <h1>Airline Manager 4 Bot</h1>
 </div>
 
@@ -20,7 +20,7 @@
 - ❌ Increasing aircraft with the most profitable models (in development).
 
 # Screenshots
-![](https://raw.githubusercontent.com/JavierOlmedo/ALMB/master/img/screenshot_001.png)
+![](https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/screenshot_001.png)
 
 <div align="center">
     Made with ❤️ in Spain
