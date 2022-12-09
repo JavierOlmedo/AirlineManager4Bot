@@ -194,7 +194,7 @@ def gettime():
 
 def main():
     banner()
-    airlinemanager = AirlineManager()
+    airlinemanager = AirlineManager4Bot()
 
 if __name__ == "__main__":
     try:
