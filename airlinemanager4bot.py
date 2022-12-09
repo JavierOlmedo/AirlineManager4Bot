@@ -4,7 +4,7 @@ from selenium import webdriver
 from termcolor import cprint
 from time import sleep
 
-class AirlineManager():
+class AirlineManager4Bot():
     # config
     goodpricefuel = 380
     goodpriceco2 = 110
