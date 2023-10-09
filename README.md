@@ -1,15 +1,16 @@
 <div align="center">
     <img src="https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/logo.png" width="100px">
     <h1>Airline Manager 4 Bot</h1>
+    <img src="https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/main.png" width="100px">
 </div>
 
 # Install
 1. Download and install [Python3](https://www.python.org/downloads/) in your system (Don't forget to add to PATH).
-2. Download a [Chromedriver](https://chromedriver.chromium.org/downloads) in same folder.
-3. Create a `creds` file with your Airline Manager 4 credentials.
+2. Download a [Chromedriver](https://chromedriver.chromium.org/downloads) inside bin folder.
+3. Add your Airline credentials in `config -> settings.ini` file.
 ```
-<YOUR-EMAIL>
-<YOUR-PASSWORD>
+username = <YOUR-USERNAME-HERE>
+password = <YOUR-PASSWORD-HERE>
 ```
 4. Install Python requirements `pip install -r requirements.txt`.
 5. Edit config in `airlinemanager4bot.py` lines **9 to 12**.
