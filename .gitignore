@@ -1,7 +1,6 @@
 # folders
-venv
+env
+test
 
 # files
-creds
-log
-test.py
+.prettierignore
