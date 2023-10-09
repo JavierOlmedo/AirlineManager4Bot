@@ -1,7 +1,7 @@
 <div align="center">
     <img src="https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/logo.png" width="100px">
     <h1>Airline Manager 4 Bot</h1>
-    <img src="https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/main.png" width="100px">
+    <img src="https://raw.githubusercontent.com/JavierOlmedo/AirlineManager4Bot/master/img/main.png">
 </div>
 
 # Install
