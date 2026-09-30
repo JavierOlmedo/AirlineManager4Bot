@@ -1,6 +1,9 @@
-# folders
-env
-test
-
-# files
-.prettierignore
+.venv/
+env/
+__pycache__/
+*.pyc
+config/session/
+config/secrets.ini
+data/logs
+bin/
+test/

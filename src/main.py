@@ -1,18 +1,26 @@
+"""Entry point: ``python src/main.py`` from any working directory."""
+from __future__ import annotations
+
 import os
-from app import App
-from functions import logprint
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main() -> None:
+    # Config, assets and logs are addressed relative to the project root.
+    os.chdir(ROOT)
+    sys.path.insert(0, str(ROOT / "src"))
+
+    from app import App
+
+    app = App()
+    try:
+        app.mainloop()
+    except KeyboardInterrupt:
+        app.on_close()
+
 
 if __name__ == "__main__":
-    try:
-        os.system("cls||clear")
-        app = App()
-        app.mainloop()
-
-    except KeyboardInterrupt:
-        if app.driver != None:
-            app.driver.quit()
-        if app.bot_running:
-            app.thread.stop()
-        app.destroy()
-        print("User aborted App!")
-        
+    main()
