@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AM4 Bot</title>
+<style>
+:root {
+  --bg: #0d1117; --card: #161b22; --card2: #1c2128; --border: #30363d; --ink: #e6edf3; --muted: #8b949e;
+  --accent: #2f81f7; --accent-ink: #ffffff; --ok: #2ea043; --warn: #d29922; --bad: #f85149; --track: #30363d;
+  --log-bg: #0b0f14; --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #f3f5f8; --card: #ffffff; --card2: #f6f8fa; --border: #d0d7de; --ink: #1f2328; --muted: #656d76;
+    --accent: #0969da; --track: #e4e8ec; --log-bg: #fbfcfd; --shadow: 0 1px 2px rgba(31,35,40,.08); color-scheme: light; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+.wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+.brand small { font-weight: 500; color: var(--muted); font-size: 13px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-weight: 600;
+  font-size: 13px; background: var(--card2); border: 1px solid var(--border); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.RUNNING .dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(46,160,67,.25); }
+.pill.ERROR .dot { background: var(--bad); }
+.pill.STARTING .dot, .pill.LOGGING_IN .dot, .pill.STOPPING .dot { background: var(--warn); }
+.badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(210,153,34,.15);
+  color: var(--warn); border: 1px solid rgba(210,153,34,.4); }
+.next { color: var(--muted); font-size: 13px; }
+.spacer { flex: 1; }
+button { font: inherit; border: 1px solid var(--border); background: var(--card2); color: var(--ink); border-radius: 8px;
+  padding: 7px 14px; cursor: pointer; font-weight: 600; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--ok); border-color: var(--ok); color: #fff; }
+button.danger { background: transparent; border-color: var(--bad); color: var(--bad); }
+button.accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tile, .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.tile { padding: 12px 14px; min-width: 0; }
+.tile .label { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.tile .value { font-size: 24px; font-weight: 700; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 6px; border-radius: 999px; background: var(--track); margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .4s; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(330px, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+.card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.card-head h2 { font-size: 15px; margin: 0; }
+select, input[type=text], input[type=number] { font: inherit; color: var(--ink); background: var(--card2);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; }
+#log { margin: 0; height: 62vh; min-height: 320px; overflow: auto; padding: 10px 14px; background: var(--log-bg);
+  border-radius: 0 0 12px 12px; font: 12.5px/1.55 "Cascadia Mono", Consolas, Menlo, monospace; }
+#log div { white-space: pre-wrap; word-break: break-word; }
+#log .ts { color: var(--muted); }
+.tabs { display: flex; gap: 4px; padding: 8px 10px 0; flex-wrap: wrap; }
+.tabs button { border: none; background: transparent; color: var(--muted); padding: 8px 10px; border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.panel { padding: 12px 14px 14px; border-top: 1px solid var(--border); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; }
+.row > label:first-child { flex: 1; min-width: 0; }
+.row input[type=number] { width: 120px; text-align: right; }
+.row input[type=text] { width: 190px; }
+.switch { position: relative; width: 38px; height: 22px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; background: var(--track); border-radius: 999px; cursor: pointer; transition: .2s; }
+.switch span::before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff;
+  border-radius: 50%; transition: .2s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::before { transform: translateX(16px); }
+.section-title { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+  margin: 12px 0 4px; }
+.actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.msg { color: var(--muted); font-size: 13px; }
+.msg.bad { color: var(--bad); }
+footer { color: var(--muted); font-size: 12px; text-align: center; margin: 18px 0 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">✈️ Airline Manager 4 Bot <small id="profile">panel web</small></div>
+    <span class="pill" id="pill"><span class="dot"></span><span id="state">…</span></span>
+    <span class="badge" id="dry" hidden data-t="🧪 Simulación">🧪 Simulación</span>
+    <span class="next" id="next"></span>
+    <span class="spacer"></span>
+    <button class="primary" id="btnStart" data-t="Iniciar">Iniciar</button>
+    <button class="danger" id="btnStop" data-t="Parar">Parar</button>
+    <button id="btnNow" data-t="Revisar ahora">Revisar ahora</button>
+  </header>
+
+  <section class="kpis">
+    <div class="tile"><div class="label" data-t="💰 Dinero">💰 Dinero</div><div class="value" id="kMoney">-</div><div class="sub" id="kMoneySub"></div></div>
+    <div class="tile"><div class="label" data-t="⭐ Reputación">⭐ Reputación</div><div class="value" id="kRep">-</div><div class="sub" id="kRepSub"></div><div class="bar"><i id="bRep"></i></div></div>
+    <div class="tile"><div class="label">⛽ Fuel</div><div class="value" id="kFuel">-</div><div class="sub" id="kFuelSub"></div><div class="bar"><i id="bFuel"></i></div></div>
+    <div class="tile"><div class="label">🌿 CO2</div><div class="value" id="kCo2">-</div><div class="sub" id="kCo2Sub"></div><div class="bar"><i id="bCo2"></i></div></div>
+    <div class="tile"><div class="label" data-t="🛩️ Flota">🛩️ Flota</div><div class="value" id="kFleet">-</div><div class="sub" id="kFleetSub"></div></div>
+    <div class="tile"><div class="label" data-t="🎯 Objetivo">🎯 Objetivo</div><div class="value" id="kGoal">-</div><div class="sub" id="kGoalSub"></div><div class="bar"><i id="bGoal"></i></div></div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <div class="card-head">
+        <h2 data-t="Registro">Registro</h2><span class="spacer"></span>
+        <select id="tagFilter" title="Filtrar por categoría" data-t-title="Filtrar por categoría"><option value="" data-t="Todas las categorías">Todas las categorías</option></select>
+      </div>
+      <div id="log"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2 data-t="Ajustes">Ajustes</h2><span class="spacer"></span><span class="msg" id="updated"></span></div>
+      <div class="tabs" id="tabs"></div>
+      <div class="panel" id="panel"></div>
+    </section>
+  </div>
+  <footer data-t="Los interruptores se guardan al cambiarlos; los números con «Guardar». La ayuda completa está en el README.">Los interruptores se guardan al cambiarlos; los números con «Guardar». La ayuda completa está en el README.</footer>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat("en-US");
+const money = v => v == null ? "-" : "$" + nf.format(v);
+const compact = v => v == null ? "?" : v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : v >= 1e4 ? "$" + Math.round(v / 1e3) + "k" : "$" + nf.format(v);
+const pct = v => v == null ? "-" : Math.round(v) + " %";
+const clock = s => s == null ? "" : s >= 3600 ? Math.floor(s / 3600) + ":" + String(Math.floor(s % 3600 / 60)).padStart(2, "0") + " h"
+  : String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+const setBar = (id, v) => { $(id).style.width = Math.max(0, Math.min(100, v || 0)) + "%"; };
+const setText = (id, text) => { const e = $(id); e.textContent = text; e.title = text; };
+
+// ------------------------------------------------------------------ language (follows the bot's interface language)
+const EN = {
+  "🧪 Simulación": "🧪 Dry run", "Iniciar": "Start", "Parar": "Stop", "Revisar ahora": "Check now",
+  "💰 Dinero": "💰 Money", "⭐ Reputación": "⭐ Reputation", "🛩️ Flota": "🛩️ Fleet", "🎯 Objetivo": "🎯 Goal",
+  "Registro": "Log", "Filtrar por categoría": "Filter by category", "Todas las categorías": "All categories",
+  "Ajustes": "Settings", "Los interruptores se guardan al cambiarlos; los números con «Guardar». La ayuda completa está en el README.":
+    "Switches are saved as you change them; numbers with “Save”. The full help is in the README.",
+  "panel web": "web dashboard", "perfil {x}": "profile {x}", "modo {x}": "{x} mode", "Error: {x}": "Error: {x}",
+  "Próxima revisión en {x}": "Next check in {x}", "Reinicio automático en {x}": "Automatic restart in {x}",
+  "Revisando…": "Checking…", "+{x}/día": "+{x}/day", "{x} puntos": "{x} points", "campaña {x}": "campaign {x}",
+  "sin campaña activa": "no campaign running", "compra ≤ {x}": "buy ≤ {x}", "mín. visto {x}": "lowest seen {x}",
+  "{x} en vuelo": "{x} flying", "{x} aparc.": "{x} parked", "{x} pend.": "{x} pending",
+  "hangar {x} libres": "hangar {x} free", "llega {x}": "arrives {x}", "Actualizado {x}": "Updated {x}",
+  "Objetivo": "Goal", "Valores": "Values", "Guardar": "Save", "vacío = más rentable": "empty = most profitable",
+  "Sin conexión con el bot": "No connection with the bot", "Respuesta no válida": "Invalid answer",
+};
+let LANG = "es";
+const tr = (text, x) => { const s = LANG === "en" ? (EN[text] || text) : text; return x === undefined ? s : s.replace("{x}", x); };
+const timeText = seconds => new Date(seconds * 1000).toLocaleTimeString(LANG === "en" ? "en-GB" : "es-ES");
+function setLanguage(lang) {
+  if (!lang || lang === LANG) { return false; }
+  LANG = lang;
+  document.documentElement.lang = lang;
+  for (const e of document.querySelectorAll("[data-t]")) { e.textContent = tr(e.dataset.t); }
+  for (const e of document.querySelectorAll("[data-t-title]")) { e.title = tr(e.dataset.tTitle); }
+  return true;
+}
+
+async function api(path, body) {
+  const options = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json", "X-AM4": "1"},
+                                           body: JSON.stringify(body)};
+  const response = await fetch(path, options);
+  const data = await response.json().catch(() => ({ok: false, message: tr("Respuesta no válida")}));
+  if (!response.ok && data.ok === undefined) { data.ok = false; }
+  return data;
+}
+
+// ------------------------------------------------------------------ status tiles
+let alive = false;
+function renderStatus(s) {
+  alive = s.alive;
+  if (setLanguage(s.lang)) { loadSettings(); }
+  $("profile").textContent = [s.profile ? tr("perfil {x}", s.profile) : tr("panel web"), s.mode ? tr("modo {x}", s.mode) : null]
+    .filter(Boolean).join(" · ");
+  document.title = s.profile ? "AM4 Bot · " + s.profile : "AM4 Bot";
+  const pill = $("pill");
+  pill.className = "pill " + s.state_key;
+  $("state").textContent = s.state_key === "ERROR" && s.error ? tr("Error: {x}", s.error) : s.state;
+  $("dry").hidden = !s.dry_run;
+  $("next").textContent = s.next_cycle_in != null ? tr("Próxima revisión en {x}", clock(s.next_cycle_in))
+    : s.restart_in != null ? tr("Reinicio automático en {x}", clock(s.restart_in))
+    : s.alive && s.state_key === "RUNNING" ? tr("Revisando…") : "";
+  $("btnStart").disabled = s.alive;
+  $("btnStop").disabled = !s.alive || s.state_key === "STOPPING";
+  $("btnNow").disabled = !(s.alive && s.next_cycle_in != null);
+
+  $("kMoney").textContent = money(s.money);
+  setText("kMoneySub", [s.income_day != null ? tr("+{x}/día", compact(s.income_day)) : null,
+                        s.points != null ? tr("{x} puntos", nf.format(s.points)) : null].filter(Boolean).join(" · "));
+  $("kRep").textContent = pct(s.reputation);
+  setText("kRepSub", s.campaign_left != null ? tr("campaña {x}", clock(s.campaign_left)) : tr("sin campaña activa"));
+  setBar("bRep", s.reputation);
+  for (const [kind, id] of [["fuel", "Fuel"], ["co2", "Co2"]]) {
+    const t = s[kind];
+    $("k" + id).textContent = pct(t.pct);
+    setText("k" + id + "Sub", [t.price != null ? money(t.price) : null, t.buy_at != null ? tr("compra ≤ {x}", money(t.buy_at)) : null,
+                               t.record != null ? tr("mín. visto {x}", money(t.record)) : null].filter(Boolean).join(" · "));
+    setBar("b" + id, t.pct);
+  }
+  const f = s.fleet;
+  $("kFleet").textContent = f.size != null ? f.size : "-";
+  setText("kFleetSub", [f.inflight ? tr("{x} en vuelo", f.inflight) : null, f.parked ? tr("{x} aparc.", f.parked) : null,
+    f.pending ? tr("{x} pend.", f.pending) : null, f.hangar_free != null ? tr("hangar {x} libres", f.hangar_free + "/" + f.hangar_capacity) : null]
+    .filter(Boolean).join(" · "));
+  const g = s.goal;
+  $("kGoal").textContent = g.pct != null ? pct(g.pct) : "-";
+  setText("kGoalSub", [(g.name || "").replace(/^Auto: /, ""), g.price_text, g.eta_text ? tr("llega {x}", g.eta_text) : null]
+    .filter(Boolean).join(" · "));
+  setBar("bGoal", g.pct);
+  $("updated").textContent = s.updated_at ? tr("Actualizado {x}", timeText(s.updated_at)) : "";
+}
+
+// ------------------------------------------------------------------ log
+let lastId = 0;
+const tags = new Set();
+function addLines(lines) {
+  const box = $("log");
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  const filter = $("tagFilter").value;
+  for (const l of lines) {
+    lastId = Math.max(lastId, l.id);
+    if (!tags.has(l.tag)) {
+      tags.add(l.tag);
+      const o = document.createElement("option"); o.value = o.textContent = l.tag; $("tagFilter").appendChild(o);
+    }
+    const row = document.createElement("div");
+    row.dataset.tag = l.tag;
+    row.hidden = !!filter && filter !== l.tag;
+    const ts = document.createElement("span"); ts.className = "ts";
+    ts.textContent = "[" + timeText(l.time) + "] ";
+    const lv = document.createElement("span"); lv.style.color = l.level_colour; lv.textContent = "[" + l.level + "] ";
+    const tg = document.createElement("span"); tg.style.color = l.tag_colour; tg.textContent = "[" + l.tag + "] ";
+    const msg = document.createElement("span"); msg.textContent = (l.emoji ? l.emoji + " " : "") + l.message;
+    if (l.level_key === "WARNING" || l.level_key === "ERROR" || l.level_key === "CRITICAL") { msg.style.color = l.level_colour; }
+    row.append(ts, lv, tg, msg);
+    box.appendChild(row);
+  }
+  while (box.childElementCount > 800) { box.firstElementChild.remove(); }
+  if (atBottom) { box.scrollTop = box.scrollHeight; }
+}
+$("tagFilter").addEventListener("change", () => {
+  const filter = $("tagFilter").value;
+  for (const row of $("log").children) { row.hidden = !!filter && filter !== row.dataset.tag; }
+  $("log").scrollTop = $("log").scrollHeight;
+});
+
+// ------------------------------------------------------------------ settings
+let settings = null, activeTab = 0;
+function field(key, label, help, input) {
+  const row = document.createElement("div"); row.className = "row"; row.title = help || "";
+  const lab = document.createElement("label"); lab.textContent = label; lab.htmlFor = "f_" + key;
+  input.id = "f_" + key;
+  row.append(lab, input);
+  return row;
+}
+function renderSettings() {
+  const tabs = $("tabs"); tabs.textContent = "";
+  settings.tabs.forEach((tab, i) => {
+    const b = document.createElement("button");
+    b.textContent = tab.icon + " " + tab.name; b.className = i === activeTab ? "on" : "";
+    b.onclick = () => { activeTab = i; renderSettings(); };
+    tabs.appendChild(b);
+  });
+  const tab = settings.tabs[activeTab], panel = $("panel");
+  panel.textContent = "";
+  if (tab.switches.length) {
+    for (const s of tab.switches) {
+      const wrap = document.createElement("label"); wrap.className = "switch";
+      const input = document.createElement("input"); input.type = "checkbox"; input.checked = s.value;
+      input.onchange = async () => {
+        const r = await api("/api/settings", {options: {[s.key]: input.checked}});
+        showMsg(r); if (!r.ok) { input.checked = !input.checked; }
+      };
+      wrap.append(input, document.createElement("span"));
+      const row = field(s.key, s.label, s.help, wrap);
+      row.querySelector("label").htmlFor = "";
+      row.onclick = e => { if (e.target === row.firstChild) { input.click(); } };
+      panel.appendChild(row);
+    }
+  }
+  const inputs = [];
+  if (tab.key === "Aviones") {
+    const t = document.createElement("div"); t.className = "section-title"; t.textContent = tr("Objetivo"); panel.appendChild(t);
+    const list = document.createElement("datalist"); list.id = "goalList";
+    for (const name of settings.goal_options) { const o = document.createElement("option"); o.value = name; list.appendChild(o); }
+    panel.appendChild(list);
+    for (const s of settings.text) {
+      const input = document.createElement("input"); input.type = "text"; input.value = s.value || "";
+      if (s.key === "goal_model") { input.setAttribute("list", "goalList"); } else { input.placeholder = tr("vacío = más rentable"); }
+      inputs.push(["text", s.key, input]);
+      panel.appendChild(field(s.key, s.label, s.help, input));
+    }
+  }
+  if (tab.fields.length) {
+    const t = document.createElement("div"); t.className = "section-title"; t.textContent = tr("Valores"); panel.appendChild(t);
+    for (const s of tab.fields) {
+      const input = document.createElement("input"); input.type = "number"; input.step = "1"; input.min = "0"; input.value = s.value;
+      inputs.push(["settings", s.key, input]);
+      panel.appendChild(field(s.key, s.label, s.help, input));
+    }
+  }
+  if (inputs.length) {
+    const actions = document.createElement("div"); actions.className = "actions";
+    const save = document.createElement("button"); save.className = "accent"; save.textContent = tr("Guardar");
+    const msg = document.createElement("span"); msg.className = "msg"; msg.id = "msg";
+    save.onclick = async () => {
+      const body = {settings: {}, text: {}};
+      for (const [kind, key, input] of inputs) { body[kind][key] = input.value; }
+      const r = await api("/api/settings", body);
+      showMsg(r);
+      if (r.ok) { await loadSettings(); showMsg(r); }
+    };
+    actions.append(save, msg);
+    panel.appendChild(actions);
+  }
+}
+function showMsg(r) {
+  const msg = $("msg"); if (!msg) { return; }
+  msg.textContent = r.message || ""; msg.className = "msg" + (r.ok ? "" : " bad");
+}
+async function loadSettings() { settings = await api("/api/settings"); setLanguage(settings.lang); renderSettings(); }
+
+// ------------------------------------------------------------------ controls and polling
+for (const [id, action] of [["btnStart", "start"], ["btnStop", "stop"], ["btnNow", "run_now"]]) {
+  $(id).onclick = async () => { $(id).disabled = true; await api("/api/control", {action}); tick(); };
+}
+async function tick() {
+  try {
+    renderStatus(await api("/api/status"));
+    const log = await api("/api/log?since=" + lastId);
+    if (log.lines && log.lines.length) { addLines(log.lines); }
+  } catch (e) {
+    $("state").textContent = tr("Sin conexión con el bot"); $("pill").className = "pill ERROR";
+  }
+}
+loadSettings();
+tick();
+setInterval(tick, 2000);
+</script>
+</body>
+</html>

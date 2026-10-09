@@ -1,0 +1,25 @@
+# Airline Manager 4 Bot as a Linux service, one instance per profile (web mode, no window):
+#   sudo cp scripts/raspberry/am4bot@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now am4bot@principal am4bot@secundario
+# Logs: journalctl -u am4bot@principal -f   (and the bot's own data/logs/am4bot.log of each profile)
+# scripts/desplegar_pi.ps1 installs and restarts it from Windows.
+[Unit]
+Description=Airline Manager 4 Bot (perfil %i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/AirlineManager4Bot
+Environment=PYTHONUTF8=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/pi/AirlineManager4Bot/.venv/bin/python src/main.py --web --profile %i
+# SIGINT = Ctrl+C: the bot stops cleanly and closes Chromium before the process ends
+KillSignal=SIGINT
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

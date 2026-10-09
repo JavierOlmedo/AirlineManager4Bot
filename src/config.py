@@ -1,34 +1,43 @@
-"""Thread-safe access to the two config files.
+"""Thread-safe access to the two config files of the active profile (see paths.py).
 
-* ``config/settings.ini``  - tracked in git, never contains secrets.
-* ``config/secrets.ini``   - git-ignored, holds the game credentials.
+* ``settings.ini``  - main profile: config/settings.ini, tracked in git, never contains secrets.
+* ``secrets.ini``   - git-ignored, holds the game credentials, the Telegram token and the web token.
 
-The GUI is the only writer. The bot thread only reads, so a single re-entrant
-lock around the parsers is enough.
+The desktop window and the web dashboard write, the bot thread only reads, so a single
+re-entrant lock around the parsers is enough. ``version`` grows with every change, so one
+interface can notice (and show) what the other one changed.
 """
 from __future__ import annotations
 
 import threading
 from configparser import ConfigParser
 from pathlib import Path
+from typing import Optional
 
-SETTINGS_FILE = Path("config/settings.ini")
-SECRETS_FILE = Path("config/secrets.ini")
+import paths
 
 
 class AppConfig:
-    def __init__(self, settings_file: Path = SETTINGS_FILE, secrets_file: Path = SECRETS_FILE):
+    def __init__(self, settings_file: Optional[Path] = None, secrets_file: Optional[Path] = None):
         self._lock = threading.RLock()
-        self.settings_file = Path(settings_file)
-        self.secrets_file = Path(secrets_file)
+        self.profile = paths.current()
+        self.settings_file = Path(settings_file or self.profile.settings)
+        self.secrets_file = Path(secrets_file or self.profile.secrets)
         self._settings = ConfigParser(interpolation=None)
         self._secrets = ConfigParser(interpolation=None)
+        self.version = 0
         self.reload()
 
     def reload(self) -> None:
         with self._lock:
             self._settings.read(self.settings_file, encoding="utf-8")
             self._secrets.read(self.secrets_file, encoding="utf-8")  # a missing file is fine
+
+    def reload_secrets(self) -> None:
+        """Pick up edits made to secrets.ini by hand (for example a new Telegram token)."""
+        with self._lock:
+            if self.secrets_file.exists():
+                self._secrets.read(self.secrets_file, encoding="utf-8")
 
     # ------------------------------------------------------------------ readers
     def get(self, section: str, key: str, fallback: str = "") -> str:
@@ -54,7 +63,9 @@ class AppConfig:
         with self._lock:
             if not self._settings.has_section(section):
                 self._settings.add_section(section)
-            self._settings.set(section, key, str(value))
+            if self._settings.get(section, key, fallback=None) != str(value):
+                self._settings.set(section, key, str(value))
+                self.version += 1
 
     def save(self) -> None:
         with self._lock:
@@ -82,6 +93,21 @@ class AppConfig:
                 self.secrets_file.parent.mkdir(parents=True, exist_ok=True)
                 with self.secrets_file.open("w", encoding="utf-8") as handle:
                     self._secrets.write(handle)
+
+    @property
+    def web_token(self) -> str:
+        """Access token of the web dashboard ([web] token in secrets.ini); empty = no token."""
+        with self._lock:
+            return self._secrets.get("web", "token", fallback="").strip()
+
+    @property
+    def telegram(self) -> tuple[str, str]:
+        """(bot token, chat id) from the [telegram] section of secrets.ini, empty strings when unset."""
+        with self._lock:
+            return (
+                self._secrets.get("telegram", "bot_token", fallback="").strip(),
+                self._secrets.get("telegram", "chat_id", fallback="").strip(),
+            )
 
     def forget_credentials(self) -> bool:
         """Delete secrets.ini from disk (the in-memory copy is kept for the current run)."""

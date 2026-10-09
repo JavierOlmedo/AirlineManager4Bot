@@ -1,17 +1,33 @@
 """Chrome WebDriver factory.
 
-Selenium >= 4.6 ships Selenium Manager, which downloads the chromedriver that
-matches the installed Chrome. No bundled binaries and no webdriver-manager.
+Selenium >= 4.6 ships Selenium Manager, which downloads the chromedriver that matches the installed
+Chrome. Google publishes no chromedriver for ARM Linux (Raspberry Pi), so there the system Chromium and
+its distribution chromedriver are used instead (``sudo apt install chromium chromium-driver``).
 """
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
+from typing import Optional
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.remote.webdriver import WebDriver
 
-SESSION_DIR = Path("config/session")
+import paths
+
+_LINUX_BROWSERS = ("/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome")
+
+
+def _system_chrome() -> tuple[Optional[str], Optional[str]]:
+    """(chromedriver, browser) installed by the Linux distribution, or (None, None) to let Selenium Manager decide."""
+    if os.name == "nt":
+        return None, None
+    driver = shutil.which("chromedriver")
+    browser = next((path for path in _LINUX_BROWSERS if Path(path).exists()), None)
+    return (driver, browser) if driver and browser else (None, None)
 
 
 def create_driver(url: str, keep_session: bool = False, headless: bool = False) -> WebDriver:
@@ -27,12 +43,18 @@ def create_driver(url: str, keep_session: bool = False, headless: bool = False) 
         options.add_argument("--headless=new")
 
     if keep_session:
-        # Dedicated Chrome profile inside the project (git-ignored) so the
-        # "remember me" cookie survives between runs.
-        SESSION_DIR.mkdir(parents=True, exist_ok=True)
-        options.add_argument(f"--user-data-dir={SESSION_DIR.resolve()}")
+        # Dedicated Chrome profile inside the project (git-ignored), one per bot profile, so the
+        # "remember me" cookie survives between runs and two airlines never share a browser.
+        session = paths.current().session
+        session.mkdir(parents=True, exist_ok=True)
+        options.add_argument(f"--user-data-dir={session.resolve()}")
 
-    driver = webdriver.Chrome(options=options)
+    chromedriver, browser = _system_chrome()
+    if chromedriver:
+        options.binary_location = browser
+        driver = webdriver.Chrome(service=Service(executable_path=chromedriver), options=options)
+    else:
+        driver = webdriver.Chrome(options=options)
     driver.set_page_load_timeout(60)
     driver.get(url)
     return driver

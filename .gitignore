@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 config/session/
 config/secrets.ini
-data/logs
+data/
 bin/
 test/
+profiles/
