@@ -201,8 +201,7 @@ def load_state(path: Optional[Path] = None) -> dict:
 def save_market(models: list[dict], path: Optional[Path] = None) -> None:
     path = Path(path or market_file())
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"updated": int(time.time()), "models": models}, indent=0), encoding="utf-8")
+        paths.write_atomic(path, json.dumps({"updated": int(time.time()), "models": models}, indent=0))
     except OSError:
         pass
 

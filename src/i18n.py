@@ -8,12 +8,13 @@ The log and the Telegram messages are still Spanish only.
 from __future__ import annotations
 
 LANGUAGES = {"es": "Español", "en": "English"}
-_language = "es"
+DEFAULT_LANGUAGE = "en"  # until [app] language is chosen in the sidebar
+_language = DEFAULT_LANGUAGE
 
 
 def set_language(code: str) -> str:
     global _language
-    _language = code if code in LANGUAGES else "es"
+    _language = code if code in LANGUAGES else DEFAULT_LANGUAGE
     return _language
 
 

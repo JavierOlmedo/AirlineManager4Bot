@@ -381,8 +381,11 @@ def apply_plan(bot: "Bot", plan: SeatPlan, max_payback: float, do_seats: bool = 
     bot.js("window.eSeat = arguments[0]; window.bSeat = arguments[1]; window.fSeat = arguments[2];"
            "window.mod1 = arguments[3]; window.mod2 = arguments[4]; window.mod3 = arguments[5];",
            *layout.seats, *(1 if mod in chosen else 0 for mod in MODS))
+    before = bot.read_money()
     bot.click_element(buttons[0])
     response = bot.wait_text("//*[@id='maintPlanActionDo']", timeout=15)
+    if not bot.confirm_purchase(before, cost, f"el taller de {plan.reg}", "maintPlanActionDo"):
+        return None
     bot.spent(cost, invest=True)
     if seats_change:
         bot.count("seats")

@@ -1,6 +1,6 @@
 """What the user can change, shared by the desktop window and the web dashboard (labels in Spanish).
 
-Numbers live in [settings], switches in [options] of config/settings.ini. Both interfaces build their
+Numbers live in [settings], switches in [options] (defaults in config/defaults.ini, changes in settings.ini). Both interfaces build their
 tabs from these lists, so a new setting only has to be added here (and to help_texts.HELP).
 """
 from __future__ import annotations
@@ -91,7 +91,7 @@ TABS = [
     ("Opciones", "⚙️", OPTIONS_FIELDS, OPTION_SWITCHES),
 ]
 
-# Switches that default to on when the key is missing from settings.ini
+# Switches that default to on when the key is missing from config/defaults.ini too (tests/ keep both in step)
 OPTION_DEFAULTS = {"auto_restart": True, "auto_hangar": True, "goal_invest": True, "auto_seats": True, "auto_mods": True,
                    "auto_marketing": True, "marketing_eco": True, "auto_checklist": True}
 

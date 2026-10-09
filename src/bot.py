@@ -36,13 +36,14 @@ from config import AppConfig
 from driver import create_driver
 from fleet import manage_fleet
 from gamemode import EASY, GameMode, from_difficulty
-from helpers import first_int, fmt, fmt_duration, timer_seconds, to_int
+from helpers import clean_response, first_int, fmt, fmt_duration, timer_seconds, to_int
 from economy import (add_money_sample, fmt_days, fmt_money, goal_progress, income_per_day, revenue_per_day, state_file,
                      usage_per_day)
 from maintenance import run_maintenance
-from market import PriceHistory, chart_prices
+from market import PriceHistory, buy_thresholds, chart_prices
 from marketing import run_marketing
 from notify import Telegram, esc
+from paths import write_atomic
 from seats import optimize_seats
 
 # One logger per topic: the GUI colours and tags the log lines by the logger suffix (see helpers.LOG_TAGS).
@@ -70,6 +71,11 @@ _PRICE_RE = re.compile(r"\$\s*([\d.,]+)")
 
 # Recoverable Selenium errors: log them and carry on with the next step.
 _SOFT_ERRORS = (TimeoutException, NoSuchElementException, StaleElementReferenceException, JavascriptException)
+
+# The game's answer to an order, by alert class (works in any game language): red = refused, green = done.
+_ANSWER_JS = ("var e = document.getElementById(arguments[0]); if (!e) { return null; }"
+              "var shown = function (s) { var a = e.querySelector(s); return a && a.offsetParent !== null ? a : null; };"
+              "var bad = shown('.alert-danger'); return {refused: bad ? bad.textContent : null, ok: !!shown('.alert-success')};")
 
 
 def _mask_email(email: str) -> str:
@@ -133,6 +139,7 @@ class Bot:
         self._next_event: Optional[tuple[int, str]] = None
         # Persistent counters for the daily summary and the date it was last sent.
         self._state: dict = self._load_state()
+        self._state_save_failed = False
         # Maintenance fleet list of this cycle (who is at the base), reused by the seat step.
         self._fleet_cache: Optional[tuple[float, list]] = None
         # While every enabled campaign runs, the marketing page is only checked again when the first one ends.
@@ -233,6 +240,40 @@ class Bot:
             if invest:
                 self._state["invested"] = int(self._state.get("invested", 0)) + int(cost)
             self._save_state()
+
+    def read_money(self) -> Optional[int]:
+        """The balance the game header shows right now (None when it cannot be read)."""
+        try:
+            return to_int(self._text(self._sel("money"), timeout=2))
+        except WebDriverException:
+            return None
+
+    def confirm_purchase(self, before: Optional[int], cost: Optional[int], what: str, container: Optional[str] = None,
+                         check: Optional[Callable[[], bool]] = None, timeout: float = 8) -> bool:
+        """After a buy click: did the game really take it? Counters, totals and notifications only follow a
+        confirmed purchase, so a refused order never shows up as spending, stock or investment.
+
+        Refused: a red alert in the game's answer (#*container*). Confirmed: a green alert there, the header
+        balance below *before*, or *check* (e.g. the tank went up). Without a balance or a cost to compare
+        (unknown balance, free action) only a refusal counts against it.
+        """
+        answer = (self.js(_ANSWER_JS, container) or {}) if container else {}
+        if answer.get("refused"):
+            log_money.warning("El juego ha rechazado %s: %s", what, clean_response(answer["refused"]) or "sin detalles")
+            return False
+        if answer.get("ok") or before is None or not cost:
+            return True
+        deadline = time.time() + timeout
+        while True:
+            after = self.read_money()
+            if (after is not None and after < before) or (check is not None and check()):
+                return True
+            if time.time() >= deadline or self._stop.is_set():
+                break
+            self._stop.wait(0.5)
+        log_money.warning("No veo el cargo de %s en el saldo (sigue en $%s): no lo cuento y lo vuelvo a mirar en la "
+                          "próxima revisión.", what, fmt(before))
+        return False
 
     def fuel_cost_basis(self) -> int:
         """Fuel price used to rank aircraft: what the bot actually pays (its buy threshold), not today's spike."""
@@ -349,11 +390,13 @@ class Bot:
 
     def _save_state(self) -> None:
         try:
-            path = state_file()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(self._state, indent=1), encoding="utf-8")
-        except OSError:
-            pass
+            write_atomic(state_file(), json.dumps(self._state, indent=1))
+        except OSError as exc:  # full disk, permissions ...: say it once, the bot keeps the state in memory
+            if not self._state_save_failed:
+                log.warning("No puedo guardar %s: %s", state_file(), exc)
+            self._state_save_failed = True
+        else:
+            self._state_save_failed = False
 
     def _maybe_daily_summary(self) -> None:
         """Once a day, after `summary_hour`, send the balance, stocks, fleet and the day's actions."""
@@ -448,7 +491,9 @@ class Bot:
         self._next_event = None
         self._guard(self._check_tutorial, "comprobar el tutorial")
         self._guard(self._read_mode, "leer el modo de juego")
-        if not self._language_checked and self.config.get_bool("options", "sync_game_language", True):
+        # The game account only follows a language the user picked in the sidebar ([app] language), never the default.
+        if (not self._language_checked and self.config.get("app", "language")
+                and self.config.get_bool("options", "sync_game_language", True)):
             self._guard(self._sync_game_language, "cambiar el idioma del juego")
         self._guard(self._read_header, "leer dinero y puntos")
         self._guard(self._read_flights, "leer la lista de vuelos")
@@ -472,12 +517,32 @@ class Bot:
         self._guard(self._maybe_daily_summary, "enviar el resumen diario")
 
     def _guard(self, action: Callable[[], None], what: str) -> None:
+        """Run one step of the cycle; a failing step is logged and the next ones still run.
+
+        Only a dead browser (closed window, lost session) ends the run: _run() then closes Chrome and the
+        automatic restart opens it again.
+        """
         try:
             action()
         except _SOFT_ERRORS as exc:
             log.warning("Problema al %s: %s. Lo dejo para el siguiente ciclo.", what, exc.__class__.__name__)
             log.debug("Detalles:", exc_info=True)
             self.close_popup(quiet=True)
+        except Exception as exc:  # noqa: BLE001 - an optional step (marketing, checklist ...) must not stop departures
+            if self._stop.is_set() or not self._browser_alive():
+                raise
+            detail = (str(exc).splitlines() or [""])[0][:160]
+            log.error("Error inesperado al %s: %s%s. Sigo con el resto del ciclo.", what, exc.__class__.__name__,
+                      f" ({detail})" if detail else "")
+            log.debug("Traceback:", exc_info=True)
+            self.close_popup(quiet=True)
+
+    def _browser_alive(self) -> bool:
+        try:
+            self.driver.current_url  # noqa: B018 - raises when the window or the session is gone
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _sleep_until_next_cycle(self) -> None:
         low = max(1, self.config.get_int("settings", "cycle_min_minutes", 5))
@@ -502,7 +567,7 @@ class Bot:
 
     def _ensure_session(self) -> None:
         # Raises WebDriverException (fatal) when the user closed the browser.
-        self.driver.current_url
+        self.driver.current_url  # noqa: B018
         if self._is_logged_in(timeout=5):
             return
         log_login.warning("Sesión perdida, vuelvo a iniciar sesión ...")
@@ -585,8 +650,10 @@ class Bot:
 
     def _sync_game_language(self) -> None:
         # Game settings popup: #langSelection (es, en, fr ...) and #btnSave send every setting with the language.
-        wanted = self.config.get("app", "language", "es") or "es"
+        wanted = self.config.get("app", "language")
         self._language_checked = True  # one attempt per run / change, whatever happens
+        if not wanted:
+            return
         self.open_popup("user_settings.php", "Settings", "nav_settings")
         current = self.js("var s = document.getElementById('langSelection'); return s ? s.value : null;")
         if current is None:
@@ -653,7 +720,7 @@ class Bot:
             log_flights.info("Nada que despegar ahora mismo.")
         else:
             self.pause()
-            button.click()
+            self.click_element(button)
             log_flights.info("Todos los aviones han despegado.")
             self.count("departures")
             if self.config.get_bool("options", "telegram_departures"):
@@ -717,20 +784,21 @@ class Bot:
         self._update_price_record(kind, tlog)
 
         # --- buy threshold: the fixed "good price", raised by the history percentile when smart buy is on
-        buy_at = self.config.get_int("settings", f"{kind}_price_good")
-        excellent_at: Optional[int] = None
+        buy_at, excellent_at = buy_thresholds(self.config.get_int("settings", f"{kind}_price_good"))
         history_note = ""
         if self.config.get_bool("options", "smart_buy"):
             days = max(1, self.config.get_int("settings", "history_days", 3))
             pct = self.config.get_int("settings", "buy_percentile", 25)
             summary = self.history.summary(kind, days, pct)
             if summary:
-                buy_at = max(buy_at, summary["threshold"])
                 top_pct = self.config.get_int("settings", "excellent_percentile", 10)
-                if top_pct > 0:
-                    excellent_at = self.history.summary(kind, days, min(top_pct, pct))["threshold"]
+                top = self.history.summary(kind, days, min(top_pct, pct))["threshold"] if top_pct > 0 else None
+                buy_at, excellent_at = buy_thresholds(self.config.get_int("settings", f"{kind}_price_good"),
+                                                      summary["threshold"], top)
                 history_note = (f" | histórico {days}d: mín {fmt(summary['min'])}, p{pct} {fmt(summary['threshold'])}, "
                                 f"mediana {fmt(summary['median'])} ({summary['samples']} muestras)")
+                if excellent_at is not None:
+                    history_note += f", excepcional <= ${fmt(excellent_at)}"
             else:
                 history_note = f" | histórico corto ({len(self.history.recent(kind, days))} muestras), uso el precio fijo"
         self.update_stats(**{f"{kind}_buy_at": buy_at})
@@ -799,11 +867,18 @@ class Bot:
         amount = WebDriverWait(self.driver, 10).until(
             EC.visibility_of_element_located((By.XPATH, self._sel(f"{kind}_amount")))
         )
+        before = self.read_money()
         self.pause()
         amount.clear()
         amount.send_keys(str(quantity))
         self._click(self._sel(f"{kind}_buy"))
-        self._mark_bought(kind, window)
+        self._mark_bought(kind, window)  # the order went out: it counts for the once-per-window rule, confirmed or not
+
+        def tank_rose() -> bool:
+            return holding is not None and (to_int(self._text(self._sel(f"{kind}_holding"), timeout=1)) or 0) > holding
+
+        if not self.confirm_purchase(before, cost, f"la compra de {label}", check=tank_rose):
+            return
         bought = self._state.setdefault("bought", {})  # running total, for the measured use per day
         bought[kind] = int(bought.get(kind, 0)) + quantity
         paid = self._state.setdefault("stock_price", {})  # average price of what is in the tank
@@ -912,7 +987,7 @@ class Bot:
     def _sel(self, name: str) -> str:
         xpath = self.config.get("selectors", name)
         if not xpath:
-            raise KeyError(f"Falta el selector '{name}' en config/settings.ini")
+            raise KeyError(f"Falta el selector '{name}' en config/defaults.ini")
         return xpath
 
     def _find(self, xpath: str, timeout: float = 10) -> Optional[WebElement]:

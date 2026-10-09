@@ -55,6 +55,15 @@ def create_driver(url: str, keep_session: bool = False, headless: bool = False) 
         driver = webdriver.Chrome(service=Service(executable_path=chromedriver), options=options)
     else:
         driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(60)
-    driver.get(url)
+    try:
+        driver.set_page_load_timeout(60)
+        driver.get(url)
+    except BaseException:
+        # Nobody else holds this driver yet: an orphan Chrome would keep the profile folder locked and
+        # every automatic restart would then fail with "user data directory is already in use".
+        try:
+            driver.quit()
+        except Exception:  # noqa: BLE001 - the original error is the one worth reporting
+            pass
+        raise
     return driver

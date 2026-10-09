@@ -17,6 +17,7 @@ function Read-Ini([string]$path, [string]$section, [string]$key) {
 }
 
 $port = Read-Ini "$dir\settings.ini" 'web' 'port'
+if (-not $port) { $port = Read-Ini 'config\defaults.ini' 'web' 'port' }
 if (-not $port) { $port = '8744' }
 $token = Read-Ini "$dir\secrets.ini" 'web' 'token'
 $listening = { Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue }

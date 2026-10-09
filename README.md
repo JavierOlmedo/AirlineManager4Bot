@@ -49,7 +49,7 @@ The images use sample figures and an example account. To refresh all of them aft
 
 Works in both game modes: the bot reads the mode of each account (easy: flights at 1.5x speed; realism: real speed and cheaper tickets) and adapts its profit, route and seat calculations to it.
 
-The window and the web dashboard speak Spanish or English (**Idioma / Language** in the sidebar, switched live); choosing a language also puts your game account in that language at the next check (`[options] sync_game_language = off` to keep them apart). The log and the Telegram messages are in Spanish for now. The game itself can be in any language: the bot finds everything by ids, classes and click handlers, never by visible text (tested with the game in English and in Spanish).
+The window and the web dashboard speak English (default) or Spanish (**Idioma / Language** in the sidebar, switched live). Your game account is left alone until you pick a language there; from then on it follows that language at the next check (`[options] sync_game_language = off` to keep them apart). The log and the Telegram messages are in Spanish for now. The game itself can be in any language: the bot finds everything by ids, classes and click handlers, never by visible text (tested with the game in English and in Spanish).
 
 ## Requirements
 
@@ -93,10 +93,11 @@ Both profiles can run as Linux services on a Raspberry Pi (tested on a Pi 4 with
 
 1. On the Pi: `sudo apt install chromium chromium-driver python3-venv` (Google ships no chromedriver for ARM, the bot uses the system one).
 2. On Windows, once: create a key with `ssh-keygen -t ed25519 -f %USERPROFILE%\.ssh\am4bot_pi` and append the `.pub` line to `~/.ssh/authorized_keys` on the Pi.
-3. `scripts\desplegar_pi.bat -Instalar` copies the code (src, assets, scripts, requirements; never data, credentials or Chrome sessions), creates the virtualenv and installs the systemd services `am4bot@principal` and `am4bot@secundario` (web mode, start at boot, restart on failure). Each machine keeps its own `config/`, `profiles/` and `data/`: copy them once if you move an airline to the Pi.
-4. Pi settings: `headless = on`, `start_on_launch = on`, `[web] host = 0.0.0.0` plus a `[web] token` in each profile's secrets. Open the dashboards from Windows at `http://<pi>:8744/?token=...` and `:8745`.
-5. On Windows add `[web] remote_instances = <pi ip>` (same token): the window and web mode then refuse to start a bot that already runs on the Pi, so an airline is never played twice.
-6. After every code change: `scripts\desplegar_pi.bat` (copies and restarts the running services; `-SinReiniciar` only copies). Logs: `journalctl -u am4bot@principal -f` or each profile's `data/logs/am4bot.log` on the Pi.
+3. Tell the scripts where the Pi is, once (it never goes into the repository): `setx AM4BOT_PI_HOST <pi ip or name>` and `setx AM4BOT_PI_USER <user>` (defaults `raspberrypi.local` and `pi`; `-Equipo` / `-Usuario` override them).
+4. `scripts\desplegar_pi.bat -Instalar` copies the code (src, assets, scripts, `config/defaults.ini`, requirements; never your settings, data, credentials or Chrome sessions), creates the virtualenv and installs the systemd services `am4bot@principal` and `am4bot@secundario` for that user (web mode, start at boot, restart on failure). Each machine keeps its own `config/`, `profiles/` and `data/`: copy them once if you move an airline to the Pi.
+5. Pi settings: `headless = on`, `start_on_launch = on`, `[web] host = 0.0.0.0` plus a `[web] token` in each profile's secrets. Open the dashboards from Windows at `http://<pi>:8744/?token=...` and `:8745`.
+6. On Windows add `[web] remote_instances = <pi ip>` to your `config/settings.ini` (same token): the window and web mode then refuse to start a bot that already runs on the Pi, so an airline is never played twice.
+7. After every code change: `scripts\desplegar_pi.bat` (copies and restarts the running services; `-SinReiniciar` only copies). Logs: `journalctl -u am4bot@principal -f` or each profile's `data/logs/am4bot.log` on the Pi.
 
 ## Web dashboard
 
@@ -117,7 +118,7 @@ While the app is open, the same dashboard is served at <http://127.0.0.1:8744/> 
 3. Reads the maintenance plan: repairs aircraft at or above `repair_wear_pct`, plans an A-check when hours to check are at or below `check_hours_min`. This happens before departures so that a landed aircraft can still be serviced at the base.
 4. Seat layout: looks at up to 8 aircraft waiting at the base (each at most twice a day) and modifies at most 2 whose layout pays back within `seats_max_payback` days.
 5. Departs every aircraft that is ready.
-6. Reads the fuel and CO2 market, stores the chart prices in the history and buys when the price is at or below the higher of `fuel_price_good` / `co2_price_good` and the `buy_percentile` of the last `history_days`. Below `min_stock_pct` it tops up at any price. It never holds more than `stock_days` of the measured use (twice that at an exceptional price). Each purchase spends at most `market_max_spend_pct` of the cash above the reserve, and only once per 30-minute price window (remembered across restarts).
+6. Reads the fuel and CO2 market, stores the chart prices in the history and buys when the price is at or below the higher of `fuel_price_good` / `co2_price_good` and the `buy_percentile` of the last `history_days`. Below `min_stock_pct` it tops up at any price. It never holds more than `stock_days` of the measured use (twice that at an exceptional price). Each purchase spends at most `market_max_spend_pct` of the cash above the reserve, and only once per 30-minute price window (remembered across restarts). An exceptional price (within `excellent_percentile` and below the fixed good price) may use all the cash above the reserve and buy again in the same window.
 7. Gives parked aircraft a route (busiest routes first, counting business and first demand when the seat layout is on; up to `route_max_distance` km, or `route_max_distance_big` for aircraft of 150+ seats, never beyond the aircraft's range; runway at least `route_min_runway` ft) and, when nothing is parked, buys one aircraft or keeps saving for `goal_model`.
 8. Reads the checklist when its counter changes (or every 6 hours).
 9. Waits a random time between `cycle_min_minutes` and `cycle_max_minutes`, or less when an aircraft is about to land or the price is about to change, and starts again.
@@ -265,13 +266,13 @@ Mientras la app está abierta, el mismo panel se ve en el navegador en <http://1
 
 ## Configuration
 
-Everything except the credentials lives in `config/settings.ini`:
+The defaults of every setting live in `config/defaults.ini` (tracked in git, shared by all profiles). What you change in the app or the web dashboard is saved in `config/settings.ini` (`profiles/<name>/settings.ini` for a named profile), which only keeps what differs from the defaults and is git-ignored, so your tuning, your Pi's address and so on never end up in a commit, and new defaults reach you unless you changed that value. Credentials and tokens live in `config/secrets.ini` (git-ignored, owner-only permissions on Linux). Sections:
 
 - `[settings]`: price thresholds, smart-buy and exceptional percentiles, history length, minimum stock, spend cap, check interval, login timeout, maintenance thresholds, cash reserve, route search limits, hangar slots to keep free, aircraft model and price cap, `goal_model`.
 - `[options]`: the switches shown in the app, including `smart_buy`, `save_for_goal`, `goal_invest`, `auto_hangar`, `auto_seats`, `auto_marketing`, `marketing_eco`, `auto_checklist`, `dry_run`, `telegram` and `auto_restart`.
 - `[web]`: `enabled`, `host` (127.0.0.1 = only this PC) and `port` of the web dashboard. Its access token goes in `config/secrets.ini`.
-- `[app]`: window title, `language` (`es` / `en`), appearance (`System`, `Dark`, `Light`), `color_theme` (`am4` = `assets/theme.json`, or a customtkinter theme name), log file.
-- `[selectors]`: the XPath expressions used to find elements in the game. If the game changes its layout, fix them here, no code change required. The app rewrites this file when you save settings, so comments in it do not survive.
+- `[app]`: window title, `language` (`en` / `es`; unset = English and your game account's language is left alone), appearance (`System`, `Dark`, `Light`), `color_theme` (`am4` = `assets/theme.json`, or a customtkinter theme name), log file.
+- `[selectors]`: the XPath expressions used to find elements in the game. They are part of the code, so they are only read from `config/defaults.ini`: if the game changes its layout, fix them there (and send a pull request). The app rewrites `settings.ini` when you save settings, so comments in it do not survive.
 
 The bot also keeps `data/prices.json` (price history), `data/state.json` (counters, money samples, lowest prices, seat checks, checklist) and `data/market.json` (aircraft market list). All of `data/` is git-ignored.
 

@@ -41,7 +41,7 @@ def run_web_only() -> None:
     except (AttributeError, ValueError):
         pass
     cfg = AppConfig()
-    set_language(cfg.get("app", "language", "es"))
+    set_language(cfg.get("app", "language"))
     where = running_instance(cfg)
     if where:
         print(f"Ya hay un Airline Manager 4 Bot de este perfil en marcha: http://{where}:{cfg.get_int('web', 'port', 8744)}/")

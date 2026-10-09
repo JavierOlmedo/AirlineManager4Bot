@@ -345,8 +345,12 @@ def create_route(bot: "Bot", aircraft: ParkedAircraft, candidate: RouteCandidate
         bot.js("$('#newRouteInfo').hide();")
         return "dry"
 
+    before = bot.read_money()
     bot.click_element(panel.find_element(By.XPATH, ".//*[@id='btnCreateNewRoute']"))
     response = bot.wait_text("//*[@id='routeNewAction']", timeout=15)
+    if not bot.confirm_purchase(before, fee, f"la ruta {candidate.name}", "routeNewAction"):
+        bot.js("$('#newRouteInfo').hide();")
+        return "stop"
     bot.spent(fee, invest=True)
     bot.count("routes")
     log.info("Ruta creada: %s. %s", summary, clean_response(response))
@@ -467,6 +471,9 @@ def save_for_goal(bot: "Bot", models: list[AircraftModel], goal_name: str, budge
         return
     bot.update_stats(goal_price=goal.price)
     progress = goal_progress(goal.price, stats.money, reserve, stats.income_day)
+    if progress is None:  # no price for the goal in the market list, or the balance is unknown
+        log_market.info("Objetivo %s: sin precio o sin saldo conocido, no compro nada en este ciclo.", goal.name)
+        return
     status = (f"Objetivo {goal.name}: {fmt_money(progress['have'])} de {fmt_money(goal.price)} ({progress['pct']:.0f}%), "
               f"faltan {fmt_money(progress['missing'])}, llegada {fmt_days(progress['eta_days'])}")
 
@@ -513,8 +520,11 @@ def order_aircraft(bot: "Bot", choice: AircraftModel, goal: bool = False) -> boo
         log_market.info("[SIMULACIÓN] Pediría %s.", summary)
         bot.notify(f"🧪 SIMULACIÓN: pediría {esc(summary)}.", silent=True)
         return True
+    before = bot.read_money()
     bot.click_element(detail.find_element(By.XPATH, ".//*[@id='btnPurchaseIntro']"))
     response = bot.wait_text("//*[@id='orderAction']", timeout=15)
+    if not bot.confirm_purchase(before, choice.price, f"el pedido de {choice.name}", "orderAction"):
+        return False
     bot.spent(choice.price, invest=True)
     bot.count("aircraft")
     free = bot.stats().hangar_free

@@ -40,8 +40,9 @@ HELP = {
                       "Entre paréntesis, el precio más bajo que ha visto el bot.",
     "buy_percentile": "Con la compra inteligente, compra cuando el precio está entre el X % más barato de los últimos días. "
                       "25 = el cuarto más barato. Más bajo compra menos veces pero más barato.",
-    "excellent_percentile": "Precio excepcional: si el precio está entre el X % más barato, llena el tanque con todo el dinero "
-                            "que haya por encima de la reserva y puede volver a comprar en la misma media hora. 0 lo desactiva.",
+    "excellent_percentile": "Precio excepcional: si el precio está entre el X % más barato y además por debajo de tu precio fijo, "
+                            "llena el tanque con todo el dinero que haya por encima de la reserva y puede volver a comprar en "
+                            "la misma media hora. 0 lo desactiva.",
     "history_days": "Cuántos días de precios usa para calcular los percentiles.",
     "min_stock_pct": "Si el tanque baja de este porcentaje, repone hasta ese nivel a cualquier precio para que ningún avión se quede en tierra.",
     "stock_days": "Como mucho compra fuel o CO2 para estos días de consumo (lo mide el bot); con precio excepcional, el "
@@ -152,8 +153,8 @@ HELP_EN = {
                       "In brackets, the lowest price the bot has seen.",
     "buy_percentile": "With smart buying, it buys when the price is within the cheapest X % of the last days. "
                       "25 = the cheapest quarter. Lower buys less often but cheaper.",
-    "excellent_percentile": "Exceptional price: within the cheapest X % it fills the tank with all the money above the "
-                            "reserve and may buy again in the same half hour. 0 turns it off.",
+    "excellent_percentile": "Exceptional price: within the cheapest X % and also below your fixed good price, it fills the "
+                            "tank with all the money above the reserve and may buy again in the same half hour. 0 turns it off.",
     "history_days": "How many days of prices are used for the percentiles.",
     "min_stock_pct": "If the tank drops below this percentage it tops up to that level at any price, so no aircraft "
                      "stays on the ground.",

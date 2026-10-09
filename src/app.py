@@ -28,7 +28,7 @@ from dashboard import fmt_clock, goal_status, ladder_step, last_money, snapshot
 import paths
 from economy import (AUTO_GOAL_LABEL, find_model, fmt_days, fmt_money, income_per_day, is_auto_goal, load_market,
                      load_state, market_file, state_file)
-from i18n import LANGUAGES, language, set_language, t, tip
+from i18n import DEFAULT_LANGUAGE, LANGUAGES, language, set_language, t, tip
 from helpers import LEVEL_STYLES, LOG_TAGS, fmt, log_tag
 from logsetup import LogBuffer, setup_logging
 from market import PriceHistory, history_file
@@ -95,7 +95,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.cfg = AppConfig()
-        set_language(self.cfg.get("app", "language", "es"))
+        set_language(self.cfg.get("app", "language"))
         self.bot = Bot(self.cfg)
         self.log_queue: "queue.Queue[logging.LogRecord]" = queue.Queue()
         self.log_buffer = LogBuffer()
@@ -917,7 +917,7 @@ class App(ctk.CTk):
 
     def change_language(self, label: str) -> None:
         """New interface language: redraw the window (the bot keeps running) and switch the game account too."""
-        code = next((code for code, name in LANGUAGES.items() if name == label), "es")
+        code = next((code for code, name in LANGUAGES.items() if name == label), DEFAULT_LANGUAGE)
         if code == language():
             return
         self.cfg.set("app", "language", code)

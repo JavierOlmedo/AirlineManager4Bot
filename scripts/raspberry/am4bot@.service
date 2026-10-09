@@ -1,5 +1,7 @@
-# Airline Manager 4 Bot as a Linux service, one instance per profile (web mode, no window):
-#   sudo cp scripts/raspberry/am4bot@.service /etc/systemd/system/
+# Airline Manager 4 Bot as a Linux service, one instance per profile (web mode, no window).
+# Written for the user pi; install it for your own account and home folder with:
+#   sed -e "s|^User=.*|User=$(id -un)|" -e "s|/home/pi/AirlineManager4Bot|$HOME/AirlineManager4Bot|g" \
+#     scripts/raspberry/am4bot@.service | sudo tee /etc/systemd/system/am4bot@.service >/dev/null
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now am4bot@principal am4bot@secundario
 # Logs: journalctl -u am4bot@principal -f   (and the bot's own data/logs/am4bot.log of each profile)

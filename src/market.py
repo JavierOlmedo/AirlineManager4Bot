@@ -43,6 +43,22 @@ def percentile(values: list[int], pct: float) -> int:
     return ordered[index]
 
 
+def buy_thresholds(fixed: int, history: Optional[int] = None, top: Optional[int] = None) -> tuple[int, Optional[int]]:
+    """(buy at, exceptional at) for one market.
+
+    *fixed* is the configured good price, *history* the buy percentile of the recent prices and *top* the
+    exceptional percentile. The buy threshold is the fixed price raised to the history percentile. An
+    exceptional price (it may spend all the cash and buy twice in a window) must also beat the fixed good
+    price, and it only exists while it is strictly below the buy threshold: with equal percentiles, or in
+    a week of expensive fuel, every ordinary purchase would otherwise count as exceptional.
+    """
+    buy_at = max(fixed, history) if history is not None else fixed
+    if top is None:
+        return buy_at, None
+    excellent_at = min(top, fixed) if fixed > 0 else top
+    return buy_at, excellent_at if excellent_at < buy_at else None
+
+
 class PriceHistory:
     def __init__(self, path: Optional[Path] = None, keep_days: int = 14):
         self.path = Path(path or history_file())
@@ -65,8 +81,7 @@ class PriceHistory:
         for kind in self._data:
             self._data[kind] = {key: value for key, value in self._data[kind].items() if int(key) >= cutoff}
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps(self._data, indent=0, sort_keys=True), encoding="utf-8")
+            paths.write_atomic(self.path, json.dumps(self._data, indent=0, sort_keys=True))
         except OSError:
             pass
 

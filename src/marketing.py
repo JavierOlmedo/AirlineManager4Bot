@@ -174,8 +174,11 @@ def start_campaign(bot: "Bot", kind: int, reputation: Optional[int] = None) -> s
     if bot.dry_run:
         log.info("[SIMULACIÓN] Lanzaría %s por $%s%s.", what, fmt(cost), gain)
         return "dry"
+    before = bot.read_money()
     bot.click_element(button)
     response = bot.wait_loaded("marketingStart", timeout=15, stale=button)
+    if not bot.confirm_purchase(before, cost, what, "marketingStart"):
+        return "skipped"
     bot.spent(cost)
     bot.count("campaigns")
     bot.count("campaign_spent", cost or 0)

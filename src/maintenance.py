@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Optional
 
 from selenium.webdriver.common.by import By
 
-from helpers import clean_response, first_int, fmt, to_int
+from helpers import clean_response, fmt, to_int
 from notify import esc
 
 if TYPE_CHECKING:
@@ -139,15 +139,19 @@ def check_hangar(bot: "Bot") -> None:
     if not buttons or "not-active" in (buttons[0].get_attribute("class") or ""):
         log.info("Hangar: %d huecos libres y la ampliación no está disponible ahora (quizá ya hay una en curso).", free)
         return
-    cost = first_int(re.compile(r"([\d,]+)"), buttons[0].text)
+    # The largest number on the button is the price (a "+1" slot count may come first).
+    cost = max((to_int(number) for number in re.findall(r"\d[\d,]*", buttons[0].text)), default=None)
     if not bot.can_spend(cost, "ampliar el hangar"):
         return
     detail = f"hangar +1 hueco por ${fmt(cost)} (quedaban {free} libres de {fmt(capacity)})"
     if bot.dry_run:
         log.info("[SIMULACIÓN] Ampliaría el %s.", detail)
         return
+    before = bot.read_money()
     bot.click_element(buttons[0])
     bot.pause(1.0, 1.5)
+    if not bot.confirm_purchase(before, cost, "la ampliación del hangar"):
+        return
     bot.spent(cost, invest=True)
     bot.count("hangar")
     bot.update_stats(hangar_capacity=(capacity or 0) + 1)
@@ -184,8 +188,11 @@ def plan(bot: "Bot", aircraft: Aircraft, kind: str) -> bool:
         log.info("[SIMULACIÓN] Planificaría %s.", detail)
         bot.notify(f"🧪 SIMULACIÓN: planificaría {esc(detail)}.", silent=True)
         return True
+    before = bot.read_money()
     bot.click_element(buttons[0])
     response = bot.wait_text("//*[@id='maintPlanActionDo']", timeout=15)
+    if not bot.confirm_purchase(before, cost, f"la {label} de {aircraft.reg}", "maintPlanActionDo"):
+        return False
     bot.spent(cost)
     bot.count("repairs" if kind == "repair" else "checks")
     log.info("Planificado: %s. %s", detail, clean_response(response))

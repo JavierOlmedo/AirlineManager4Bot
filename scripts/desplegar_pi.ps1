@@ -2,16 +2,23 @@
 #   scripts\desplegar_pi.bat              copia el codigo (src, assets, scripts, requirements) y reinicia los bots
 #   scripts\desplegar_pi.bat -Instalar    la primera vez: ademas crea el entorno y deja los bots como servicios
 #   scripts\desplegar_pi.bat -SinReiniciar  solo copia
-# Nunca copia datos, credenciales ni sesiones de Chrome: cada maquina tiene los suyos.
+# Nunca copia datos, ajustes propios, credenciales ni sesiones de Chrome: cada maquina tiene los suyos
+# (solo config/defaults.ini, que es parte del codigo).
 # Usa la clave SSH %USERPROFILE%\.ssh\am4bot_pi (autorizada en la Raspberry), sin contrasenas.
+# La IP y el usuario de tu Raspberry no van en el repositorio: guardalos una vez en variables de entorno
+#   setx AM4BOT_PI_HOST 192.168.1.50      (o su nombre, por defecto raspberrypi.local)
+#   setx AM4BOT_PI_USER pi                (por defecto pi)
+# o pasalos cada vez: scripts\desplegar_pi.bat -Equipo 192.168.1.50 -Usuario pi
 param(
-    [string]$Equipo = 'raspberrypi.local',
-    [string]$Usuario = 'pi',
+    [string]$Equipo = $env:AM4BOT_PI_HOST,
+    [string]$Usuario = $env:AM4BOT_PI_USER,
     [string[]]$Perfiles = @('principal', 'secundario'),
     [switch]$Instalar,
     [switch]$SinReiniciar
 )
 $ErrorActionPreference = 'Stop'
+if (-not $Equipo) { $Equipo = 'raspberrypi.local' }
+if (-not $Usuario) { $Usuario = 'pi' }
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $key = Join-Path $env:USERPROFILE '.ssh\am4bot_pi'
@@ -33,7 +40,7 @@ function Remoto([string]$script) {
 
 Write-Host "1/3 Empaquetando el codigo ..."
 $paquete = Join-Path $env:TEMP 'am4bot-codigo.tgz'
-& tar.exe -czf $paquete --exclude '__pycache__' --exclude '*.pyc' src assets scripts requirements.txt README.md
+& tar.exe -czf $paquete --exclude '__pycache__' --exclude '*.pyc' src assets scripts config/defaults.ini requirements.txt README.md
 if ($LASTEXITCODE -ne 0) { throw 'No he podido empaquetar el codigo.' }
 
 Write-Host "2/3 Copiando a $Equipo ..."
@@ -55,7 +62,9 @@ if [ "$old_req" != "$(cat requirements.txt)" ] || [ ! -f .venv/.instalado ]; the
   .venv/bin/pip install -q --upgrade pip && .venv/bin/pip install -q -r requirements.txt && touch .venv/.instalado
 fi
 if [ "__INSTALAR__" = "1" ]; then
-  sudo cp scripts/raspberry/am4bot@.service /etc/systemd/system/am4bot@.service
+  # The unit in the repository names the user pi: install it with this account and its home folder.
+  sed -e "s|^User=.*|User=$(id -un)|" -e "s|/home/pi/AirlineManager4Bot|$HOME/AirlineManager4Bot|g" \
+    scripts/raspberry/am4bot@.service | sudo tee /etc/systemd/system/am4bot@.service >/dev/null
   sudo systemctl daemon-reload
   sudo systemctl enable __SERVICIOS__ >/dev/null 2>&1
   echo "   servicios activados: __SERVICIOS__"
