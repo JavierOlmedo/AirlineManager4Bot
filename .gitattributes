@@ -1,0 +1,8 @@
+# Normalise line endings in the repository; Windows scripts get CRLF on checkout, Linux files LF everywhere.
+* text=auto
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.service text eol=lf
+*.sh text eol=lf
+*.png binary
+*.ico binary
